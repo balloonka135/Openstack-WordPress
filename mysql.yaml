@@ -1,0 +1,172 @@
+heat_template_version: 2018-03-02
+ 
+description: Template that installs a MySQL server with a database.
+ 
+parameters:
+
+  image_id:
+    type: string
+    label: Image name or ID
+    description: Image to be used for server. Please use an Ubuntu based image.
+    default: trusty-server-cloudimg-amd64
+
+  flavor:
+    type: string
+    label: Flavor
+    description: Type of instance (flavor) to be used on the compute instance.
+    default: m1.small
+
+  key_name:
+    type: string
+    label: Key name
+    description: Name of key-pair to be installed on the compute instance.
+    default: my_key
+
+  private_network:
+    type: string
+    label: Private network name or ID
+    description: Network to attach server to.
+    default: private
+
+  database_name:
+    type: string
+    label: Database name
+    description: Name of the WordPress application database.
+    constraints:
+      - length: { min: 1, max: 64 }
+        description: db_name must be between 1 and 64 characters
+      - allowed_pattern: '[a-zA-Z][a-zA-Z0-9]*'
+        description: >
+          database_name must begin with a letter and contain only alphanumeric
+          characters.
+    default: wordpress
+
+  database_user:
+    type: string
+    label: Database username
+    description: The WordPress database admin account username.
+    hidden: true
+    constraints:
+      - length: { min: 1, max: 16 }
+        description: db_username must be between 1 and 64 characters
+      - allowed_pattern: '[a-zA-Z][a-zA-Z0-9]*'
+        description: >
+          database_user must begin with a letter and contain only alphanumeric
+          characters.
+    default: wordpressuser
+
+  database_password:
+    type: string
+    label: Database username
+    description: The WordPress database admin account username.
+    hidden: true
+    constraints:
+      - length: { min: 1, max: 30 }
+      - allowed_pattern: '[a-zA-Z][a-zA-Z0-9]*'
+      - description: Password should contain at least 1 number and 1 upper-case letter
+    default: wordpresspassword
+ 
+resources:
+
+  # wait_condition:
+  #   type: OS::Heat::WaitCondition
+  #   properties:
+  #     handle: { get_resource: wait_handle }
+  #     count: 1
+  #     timeout: 600
+ 
+  # wait_handle:
+  #   type: OS::Heat::WaitConditionHandle
+ 
+  mysql_root_password:
+    type: OS::Heat::RandomString
+    properties:
+      length: 32
+      sequence: lettersdigits
+
+      
+ ######## configurable at the deployment time and pass through some validation to ensure reasonably strong passwords
+  # database_password:
+  #   type: OS::Heat::RandomString
+  #   properties:
+  #     length: 32
+  #     sequence: lettersdigits
+ 
+  # security_group:
+  #   type: OS::Neutron::SecurityGroup
+  #   properties:
+  #     name: db_server_security_group
+  #     rules:
+  #       - protocol: tcp
+  #         port_range_min: 3306
+  #         port_range_max: 3306
+ 
+  # port_number:
+  #   type: OS::Neutron::Port
+  #   properties:
+  #     network: { get_param: private_network }
+  #     security_groups:
+  #       - { get_attr: [project_2, security_group] }
+      
+  mysql_instance:
+    type: OS::Nova::Server
+    properties:
+      image: { get_param: image_id }
+      flavor: { get_param: flavor }
+      key: { get_param: key_name }
+      networks:
+        - port: { get_attr: [project_2, port_number] }
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          params:
+            __mysql_root_password__: { get_attr: [mysql_root_password, value] }
+            __database_name__: { get_param: database_name }
+            __database_user__: { get_param: database_user }
+            #__database_password__: { get_attr: [database_password, value] }
+            __database_password__: { get_param: database_password }
+            # wc_notify: { get_attr: ['wait_handle', 'curl_cli'] }
+          template: |
+            #!/bin/bash
+            # install MySQL
+            sudo apt-get update
+            export DEBIAN_FRONTEND=noninteractive
+            sudo apt-get install mariadb-server mariadb-client
+
+            sudo mysql_secure_installation
+ 
+            # configure MySQL root password
+            mysqladmin -u root password "__mysql_root_password__"
+ 
+            # listen on all network interfaces
+            sed -i "s/bind-address.*/bind-address = 0.0.0.0/" /etc/mysql/my.cnf
+ 
+            # restart service
+            # service mysql restart
+            sudo systemctl restart mariadb
+ 
+            # create wordpress database
+            mysql -u root --password="__mysql_root_password__" <<EOF
+            CREATE DATABASE __database_name__;
+            CREATE USER '__database_user__'@'localhost' IDENTIFIED BY '__database_password__';
+            # SET PASSWORD FOR '__database_user__'@'localhost'=PASSWORD("__database_password__");
+            GRANT ALL PRIVILEGES ON __database_name__.* TO '__database_user__'@'localhost' IDENTIFIED BY '__database_password__';
+            FLUSH PRIVILEGES;
+            EOF
+ 
+            # # notify heat that we are done here
+            # wc_notify --data-binary '{"status": "SUCCESS"}'
+
+outputs:
+  name:
+    description: Name of the MySQL instance.
+    value: { get_attr: [mysql_instance, name] }
+  ip:
+    description: The IP address of the MySQL instance.
+    value: { get_attr: [mysql_instance, first_address] }
+  # port:
+  #   description: The network port of the MySQL instance.
+  #   value: { get_resource: port_number }
+  # database_password:
+  #   description: The MySQL database password.
+  #   value: { get_attr: [database_password, value] }
