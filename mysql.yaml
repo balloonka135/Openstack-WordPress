@@ -129,11 +129,11 @@ resources:
           template: |
             #!/bin/bash
             # install MySQL
-            sudo apt-get update
+            apt-get update
             export DEBIAN_FRONTEND=noninteractive
-            sudo apt-get install mariadb-server mariadb-client
+            apt-get install mariadb-server mariadb-client
 
-            sudo mysql_secure_installation
+            mysql_secure_installation
  
             # configure MySQL root password
             mysqladmin -u root password "__mysql_root_password__"
@@ -143,7 +143,7 @@ resources:
  
             # restart service
             # service mysql restart
-            sudo systemctl restart mariadb
+            systemctl restart mariadb
  
             # create wordpress database
             mysql -u root --password="__mysql_root_password__" <<EOF

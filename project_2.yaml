@@ -31,7 +31,6 @@ parameters:
     description: Instance type to be used on the compute instance.
     default: m1.small
 
-
   # flavor_wordpress:
   #   type: string
   #   default: 1 GB General Purpose v1
@@ -62,13 +61,6 @@ parameters:
   #     - 4GB Instance
 
 
-
-  # private_network:
-  #   type: string
-  #   label: Private network ID
-  #   description: Network to be used for the server.
-  #   default: private-1
-
   public_net_id:
     type: string
     label: ID of the external network
@@ -80,11 +72,6 @@ parameters:
     label: Network CIDR
     description: The CIDR of the private network.
     default: '192.168.0.0/24'
-
-  # port_number:
-  #   type: string
-  #   label: Server port
-  #   description: The server port that receives the floating IP address.
 
 resources:
 
