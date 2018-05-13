@@ -51,40 +51,6 @@ parameters:
 
 resources:
 
-  # wait_condition:
-  #   type: OS::Heat::WaitCondition
-  #   properties:
-  #     handle: { get_resource: wh }
-  #     count: 1
-  #     timeout: 600
-
-  # wh:
-  #   type: OS::Heat::WaitConditionHandle
-
-  # security_group:
-  #     type: OS::Neutron::SecurityGroup
-  #     properties:
-  #       name: web_server_security_group
-  #       rules:
-  #         - protocol: tcp
-  #           port_range_min: 80
-  #           port_range_max: 80
-
-  # port:
-  #   type: OS::Neutron::Port
-  #   properties:
-  #     network: { get_param: private_network }
-  #     security_groups:
-  #       - { get_resource: security_group }
-
-  # port_number:
-  #   type: OS::Neutron::Port
-  #   properties:
-  #     network_id: { get_resource: private_net_id }
-  #     fixed_ips:
-  #       - subnet_id: { get_resource: private_subnet_id }
-  #     security_groups: { get_attr: [project_2, security_group] }
-
   wordpress_instance:
     type: OS::Nova::Server
     properties:
@@ -106,7 +72,7 @@ resources:
             #!/bin/bash -ex
             # install dependencies
             apt-get update
-            apt-get -y install apache2 php5 libapache2-mod-php5 php5-mysql php5-gd mysql-client
+            apt-get -y install apache2 php php-curl php-gd php-mbstring php-mcrypt php-xml php-xmlrpc
             # download wordpress
             wget http://wordpress.org/latest.tar.gz
             tar -xzf latest.tar.gz

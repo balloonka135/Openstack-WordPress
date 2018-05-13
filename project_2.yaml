@@ -1,65 +1,70 @@
 heat_template_version: 2018-03-02
 
-description: This template deploys <smth>.
+description: This template deploys MariaDB and WordPress instances.
 
 parameters:
+
   key_name:
     type: string
     label: Key name
     description: Name of a KeyPair to enable SSH access to the instance.
     default: project_keys
+
   image_id:
     type: string
     label: Image name
     description: Image ID to be used for the WordPress server.
     default: MU-Ubuntu-16.04-Xenial-64-bit
     constraints:
-    - allowed_values:
-      - MU-Ubuntu-16.04-Xenial-64-bit
-      - MU-CentOS-7-64-bit
-      - MU-Debian-8-Jessie-64-bit
-      - MU-Debian-9-Stretch-64-bit
-      - MU-Fedora-27-64-bit
-      - MU-Ubuntu-14.04-Trusty-64-bit
-      - MU-Windows-10-Pro-en
-      - MU-Windows-8-1-Pro-en
-      - MU-Windows-Server-2012-R2-standard
-      - MU-Windows-Server-2016-Datacenter-en
-  flavor:
+      - allowed_values:
+        - MU-Ubuntu-16.04-Xenial-64-bit
+        - MU-CentOS-7-64-bit
+        - MU-Debian-8-Jessie-64-bit
+        - MU-Debian-9-Stretch-64-bit
+        - MU-Fedora-27-64-bit
+        - MU-Ubuntu-14.04-Trusty-64-bit
+
+  # flavor:
+  #   type: string
+  #   label: Flavor
+  #   description: Instance type to be used on the compute instance.
+  #   default: m1.small
+  #   constraints:
+  #     - allowed values:
+  #       - m1.small
+  #       - m1.medium
+  #       - m1.large
+
+  flavor_wordpress:
     type: string
-    label: Flavor
-    description: Instance type to be used on the compute instance.
-    default: m1.small
+    default: 1 GB General Purpose v1
+    label: Server Flavor
+    description: Flavor of Cloud Server to use for WordPress
+    constraints:
+      - allowed_values:
+        - 1 GB General Purpose v1
+    immutable: true
 
-  # flavor_wordpress:
-  #   type: string
-  #   default: 1 GB General Purpose v1
-  #   label: Server Flavor
-  #   description: Flavor of Cloud Server to use for WordPress
-  #   constraints:
-  #   - allowed_values:
-  #     - 1 GB General Purpose v1
-  #   immutable: true
-  # block_storage:
-  #   type: number
-  #   default: 1
-  #   constraints:
-  #   - range:
-  #       min: 1
-  #       max: 10
-  #   label: Database Disk (in GB)
-  #   description: Size of the Cloud Database volume in GB
-  # flavor_database:
-  #   type: string
-  #   default: 1GB Instance
-  #   label: Cloud Database Flavor
-  #   description: Flavor for the Cloud Database
-  #   constraints:
-  #   - allowed_values:
-  #     - 1GB Instance
-  #     - 2GB Instance
-  #     - 4GB Instance
+  block_storage:
+    type: number
+    default: 1
+    constraints:
+      - range:
+        min: 1
+        max: 10
+    label: Database Disk (in GB)
+    description: Size of the Cloud Database volume in GB
 
+  flavor_database:
+    type: string
+    default: 1GB Instance
+    label: Cloud Database Flavor
+    description: Flavor for the Cloud Database
+    constraints:
+      - allowed_values:
+        - 1GB Instance
+        - 2GB Instance
+        - 4GB Instance
 
   public_net_id:
     type: string
@@ -114,12 +119,6 @@ resources:
       floating_network: { get_param: public_net_id }
       port_id: { get_resource: port_number }
 
-  # floating_ip_assoc:
-  #   type: OS::Neutron::FloatingIPAssociation
-  #   properties:
-  #     floatingip_id: { get_resource: floating_ip }
-  #     port_id: { get_param: port_number }
-
   security_group:
     type: OS::Neutron::SecurityGroup
     properties:
@@ -134,12 +133,12 @@ resources:
           port_range_max: 22
 
   mysql:
-    type: lib/mysql.yaml
+    type: mysql.yaml
     properties:
       image: { get_param: image_id }
-      flavor: { get_param: flavor }
-      # flavor: { get_param: flavor_database }
-      # storage: { get_param: block_storage }
+      #flavor: { get_param: flavor }
+      flavor: { get_param: flavor_database }
+      storage: { get_param: block_storage }
       key: { get_param: key_name }
       private_network: { get_resource: private_net_id }
       # networks:
@@ -148,11 +147,11 @@ resources:
       database_user: wordpress_user
 
   wordpress:
-    type: lib/wordpress.yaml
+    type: wordpress.yaml
     properties:
       image: { get_param: image_id }
-      flavor: { get_param: flavor }
-      # flavor: { get_param: flavor_wordpress }
+      # flavor: { get_param: flavor }
+      flavor: { get_param: flavor_wordpress }
       key: { get_param: key_name }
       private_network: { get_resource: private_net_id }
       # networks:

@@ -68,46 +68,12 @@ parameters:
  
 resources:
 
-  # wait_condition:
-  #   type: OS::Heat::WaitCondition
-  #   properties:
-  #     handle: { get_resource: wait_handle }
-  #     count: 1
-  #     timeout: 600
- 
-  # wait_handle:
-  #   type: OS::Heat::WaitConditionHandle
- 
   mysql_root_password:
     type: OS::Heat::RandomString
     properties:
       length: 32
       sequence: lettersdigits
 
-      
- ######## configurable at the deployment time and pass through some validation to ensure reasonably strong passwords
-  # database_password:
-  #   type: OS::Heat::RandomString
-  #   properties:
-  #     length: 32
-  #     sequence: lettersdigits
- 
-  # security_group:
-  #   type: OS::Neutron::SecurityGroup
-  #   properties:
-  #     name: db_server_security_group
-  #     rules:
-  #       - protocol: tcp
-  #         port_range_min: 3306
-  #         port_range_max: 3306
- 
-  # port_number:
-  #   type: OS::Neutron::Port
-  #   properties:
-  #     network: { get_param: private_network }
-  #     security_groups:
-  #       - { get_attr: [project_2, security_group] }
-      
   mysql_instance:
     type: OS::Nova::Server
     properties:
@@ -131,9 +97,10 @@ resources:
             # install MySQL
             apt-get update
             export DEBIAN_FRONTEND=noninteractive
-            apt-get install mariadb-server mariadb-client
+            # apt-get install mariadb-server mariadb-client
+            apt-get install -y mysql-server
 
-            mysql_secure_installation
+            # mysql_secure_installation
  
             # configure MySQL root password
             mysqladmin -u root password "__mysql_root_password__"
@@ -142,8 +109,7 @@ resources:
             sed -i "s/bind-address.*/bind-address = 0.0.0.0/" /etc/mysql/my.cnf
  
             # restart service
-            # service mysql restart
-            systemctl restart mariadb
+            service mysql restart
  
             # create wordpress database
             mysql -u root --password="__mysql_root_password__" <<EOF
