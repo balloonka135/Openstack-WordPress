@@ -1,8 +1,0 @@
-resource_registry:  
-  # Lib::RH::MySQL: https://raw.githubusercontent.com/balloonka135/Openstack_wp/master/mysql.yaml  
-  # Lib::RH::Wordpress: https://raw.githubusercontent.com/balloonka135/Openstack_wp/master/wordpress.yaml
-  resources:
-    mysql:
-      "OS::MySQLInstance": https://raw.githubusercontent.com/balloonka135/Openstack_wp/master/mysql.yaml
-    wordpress:
-      "OS::WordPressInstance": https://raw.githubusercontent.com/balloonka135/Openstack_wp/master/wordpress.yaml

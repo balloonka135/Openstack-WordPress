@@ -1,4 +1,4 @@
-heat_template_version: 2018-03-02
+heat_template_version: 2016-04-08
 
 description: This template deploys MariaDB and WordPress instances.
 
@@ -9,7 +9,16 @@ parameters:
     description: Name of a KeyPair to enable SSH access to the instance.
     default: project_keys
 
-  image_id:
+  image_id_db: 
+    type: string
+    label: Image name
+    description: Image ID to be used for the WordPress server.
+    default: MU-Debian-9-Stretch-64-bit
+    constraints:
+      - allowed_values:
+        - MU-Debian-9-Stretch-64-bit # mysql
+
+  image_id_wp: # wordpress
     type: string
     label: Image name
     description: Image ID to be used for the WordPress server.
@@ -17,10 +26,8 @@ parameters:
     constraints:
       - allowed_values:
         - MU-Ubuntu-16.04-Xenial-64-bit
-        - MU-CentOS-7-64-bit
         - MU-Debian-8-Jessie-64-bit
-        - MU-Debian-9-Stretch-64-bit
-        - MU-Fedora-27-64-bit
+        - MU-Debian-9-Stretch-64-bit # mysql
         - MU-Ubuntu-14.04-Trusty-64-bit
 
   flavor:
@@ -29,7 +36,7 @@ parameters:
     description: Instance type to be used on the compute instance.
     default: m1.small
     constraints:
-      - allowed values:
+      - allowed_values:
         - m1.small
         - m1.medium
         - m1.large
@@ -39,8 +46,8 @@ parameters:
     label: Database name
     description: Name of the WordPress application database.
     constraints:
-      - length: { min: 1, max: 64 }
-        description: db_name must be between 1 and 64 characters
+      - length: { min: 5, max: 64 }
+        description: db_name must be between 5 and 64 characters
       - allowed_pattern: '[a-zA-Z][a-zA-Z0-9]*'
         description: >
           database_name must begin with a letter and contain only alphanumeric
@@ -53,8 +60,8 @@ parameters:
     description: The WordPress database admin account username.
     hidden: true
     constraints:
-      - length: { min: 1, max: 16 }
-        description: db_username must be between 1 and 64 characters
+      - length: { min: 5, max: 16 }
+        description: db_username must be between 5 and 64 characters
       - allowed_pattern: '[a-zA-Z][a-zA-Z0-9]*'
         description: >
           database_user must begin with a letter and contain only alphanumeric
@@ -66,9 +73,9 @@ parameters:
     description: The WordPress database admin account password.
     hidden: true
     constraints:
-      - length: { min: 1, max: 30 }
+      - length: { min: 10, max: 30 }
       - allowed_pattern: '[a-zA-Z0-9]*'
-      - description: Password must contain only alphanumeric characters
+        description: Password must contain only alphanumeric characters
     default: wordpresspassword
 
   database_root_password:
@@ -76,9 +83,9 @@ parameters:
     description: Root password for MySQL.
     hidden: true
     constraints:
-      - length: { min: 1, max: 30 }
+      - length: { min: 10, max: 30 }
       - allowed_pattern: '[a-zA-Z0-9]*'
-      - description: Password should contain only alphanumeric characters
+        description: Password should contain only alphanumeric characters
     default: wordpresspassword
 
   public_net_id:
@@ -86,74 +93,101 @@ parameters:
     label: ID of the external network
     description: Public network with floating IP addresses.
     default: public-float-21
+    constraints:
+      - allowed_values:
+        - public-float-21
 
-  cidr:
+  private_net_id:
     type: string
-    label: Network CIDR
-    description: The CIDR of the private network.
-    default: '192.168.0.0/24'
+    label: ID of the internal network
+    description: Network to attach server to.
+    default: internal-net
+    constraints:
+      - allowed_values:
+        - internal-net
 
 resources:
-  private_net_id:
-    type: OS::Neutron::Net
-    label: ID of the internal network
-    default: private-1
-
-  private_subnet_id:
-    type: OS::Neutron::Subnet
+  db_security_group:
+    type: OS::Neutron::SecurityGroup
     properties:
-      network_id: { get_resource: private_net_id }
-      cidr: { get_param: cidr }
-      # dns_nameservers:
-      #   - 8.8.8.8
+      name: Database Ports
+      rules:
+        - protocol: tcp
+          port_range_min: 3306
+          port_range_max: 3306
+        - protocol: tcp
+          port_range_min: 80
+          port_range_max: 80
 
-  router:
-    type: OS::Neutron::Router
-    properties:
-      external_gateway_info:
-        network: { get_param: public_network }
+  # wait_handle_wp:
+  #   type: OS::Heat::WaitConditionHandle
 
-  router-interface:
-    type: OS::Neutron::Router
-    properties:
-      router_id: { get_resource: router }
-      subnet: { get_resource: private_subnet_id }
+  # wait_condition_wp:
+  #   type: OS::Heat::WaitCondition
+  #   depends_on: wait_handle_wp
+  #   properties:
+  #     handle: { get_resource: wait_handle_wp }
+  #     count: 1
+  #     timeout: 600
 
-  port_number:
+  wp_port:
     type: OS::Neutron::Port
+    depends_on: [ db_security_group ]
     properties:
-      network_id: { get_resource: private_net_id }
-      fixed_ips:
-        - subnet_id: { get_resource: private_subnet_id }
-      security_groups: { get_resource: security_group }
+      network: { get_param: private_net_id }
+      security_groups:
+        - { get_resource: db_security_group }
+
+  # wait_handle_db:
+  #   type: OS::Heat::WaitConditionHandle
+
+  # wait_condition_db:
+  #   type: OS::Heat::WaitCondition
+  #   depends_on: wait_handle_db
+  #   properties:
+  #     handle: { get_resource: wait_handle_db }
+  #     count: 1
+  #     timeout: 600
+ 
+  db_port:
+    type: OS::Neutron::Port
+    depends_on: [ db_security_group ]
+    properties:
+      network: { get_param: private_net_id }
+      security_groups:
+        - { get_resource: db_security_group }
+
+  db_volume:
+    type: OS::Cinder::Volume
+    properties:
+      description: Storage for Wordpress Database
+      size: 1
+
+  db_volume_attachment:
+    type: OS::Cinder::VolumeAttachment
+    properties:
+      instance_uuid: { get_resource: mysql }
+      volume_id: { get_resource: db_volume }
 
   floating_ip:
     type: OS::Neutron::FloatingIP
     properties:
       floating_network: { get_param: public_net_id }
-      port_id: { get_resource: port_number }
 
-  security_group:
-    type: OS::Neutron::SecurityGroup
+  floating_ip_assoc:
+    type: OS::Neutron::FloatingIPAssociation
     properties:
-      name: web_server_security_group
-      rules:
-        - protocol: tcp
-          port_range_min: 80
-          port_range_max: 80
-        - protocol: icmp
-        - protocol: tcp
-          port_range_min: 22
-          port_range_max: 22
+      floatingip_id: { get_resource: floating_ip }
+      port_id: { get_resource: db_port }
 
   mysql:
     type: OS::Nova::Server
     properties:
-      image: { get_param: image_id }
+      image: { get_param: image_id_db }
       flavor: { get_param: flavor }
-      key: { get_param: key_name }
+      key_name: { get_param: key_name }
       networks:
-        - port: { get_resource: port_number }
+        - port: { get_resource: db_port }
       user_data_format: RAW
       user_data:
         str_replace:
@@ -162,42 +196,47 @@ resources:
             __database_name__: { get_param: database_name }
             __database_user__: { get_param: database_user }
             __database_password__: { get_param: database_password }
+            __voldata_id__: { get_resource: db_volume }
+            # __wc_notify__: { get_attr: ['wait_handle_db', 'curl_cli'] }
           template: |
             #!/bin/bash
-            # install MySQL
+
             apt-get update
             export DEBIAN_FRONTEND=noninteractive
-            # apt-get install mariadb-server mariadb-client
+
+            voldata_id="__voldata_id__"
+            voldata_dev="/dev/disk/by-id/virtio-$(echo ${voldata_id} | cut -c -20)"
+            mkfs.ext4 ${voldata_dev}
+            mkdir -pv /var/lib/mysql
+            echo "${voldata_dev} /var/lib/mysql ext4 defaults 1 2" >> /etc/fstab
+            mount /var/lib/mysql/
+
             apt-get install -y mysql-server
  
-            # configure MySQL root password
             mysqladmin -u root password "__mysql_root_password__"
  
-            # listen on all network interfaces
             sed -i "s/bind-address.*/bind-address = 0.0.0.0/" /etc/mysql/my.cnf
  
-            # restart service
             service mysql restart
  
-            # create wordpress database
             mysql -u root --password="__mysql_root_password__" <<EOF
             CREATE DATABASE __database_name__;
             CREATE USER '__database_user__'@'localhost' IDENTIFIED BY '__database_password__';
-            # SET PASSWORD FOR '__database_user__'@'localhost'=PASSWORD("__database_password__");
             GRANT ALL PRIVILEGES ON __database_name__.* TO '__database_user__'@'localhost' IDENTIFIED BY '__database_password__';
             FLUSH PRIVILEGES;
             EOF
 
+            # __wc_notify__ -k --data-binary '{"status": "SUCCESS"}'
+
+
   wordpress:
     type: OS::Nova::Server
     properties:
-      image: { get_param: image_id }
+      image: { get_param: image_id_wp }
       flavor: { get_param: flavor }
       key_name: { get_param: key_name }
       networks:
-        - port: { get_resource: port_number }
-      security_groups: 
-        - { get_resource: security_group }
+        - port: { get_resource: wp_port }
       user_data_format: RAW
       user_data:
         str_replace:
@@ -206,26 +245,33 @@ resources:
             __database_name__: { get_param: database_name }
             __database_user__: { get_param: database_user }
             __database_password__: { get_param: database_password }
+            # __wc_notify__: { get_attr: ['wait_handle_wp', 'curl_cli'] }
           template: |
             #!/bin/bash -ex
-            # install dependencies
+
             apt-get update
-            apt-get -y install apache2 php php-curl php-gd php-mbstring php-mcrypt php-xml php-xmlrpc
-            # download wordpress
+            apt-get -y install apache2
+            apt-get -y install php5 php5-curl php5-gd php5-mbstring php5-mcrypt php5-xml php5-xmlrpc || apt-get -y install php7.0
+
             wget http://wordpress.org/latest.tar.gz
             tar -xzf latest.tar.gz
-            # configure wordpress
+
             cp wordpress/wp-config-sample.php wordpress/wp-config.php
             sed -i 's/database_name_here/__database_name__/' wordpress/wp-config.php
             sed -i 's/username_here/__database_user__/' wordpress/wp-config.php
             sed -i 's/password_here/__database_password__/' wordpress/wp-config.php
             sed -i 's/localhost/__mysql_ip__/' wordpress/wp-config.php
-            # install a copy of the configured wordpress into apache's www directory
+
             rm /var/www/html/index.html
             cp -R wordpress/* /var/www/html/
-            # give apache ownership of the application files
+
             chown -R www-data:www-data /var/www/html/
             chmod -R g+w /var/www/html/
+
+            echo restart apache2
+            sudo service apache2 restart
+
+            # __wc_notify__ -k --data-binary '{"status": "SUCCESS"}'
 
 outputs:
   WebsiteURL: 
